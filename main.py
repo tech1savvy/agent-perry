@@ -1,7 +1,12 @@
+import argparse
+from logging import raiseExceptions
 import os
+import json
+
 from dotenv import load_dotenv
 from openai import OpenAI
-import argparse
+
+from call_function import available_functions, call_function
 from prompts import system_prompt
 
 
@@ -36,6 +41,7 @@ def generate_content(client: OpenAI, messages: list, verbose: bool) -> None:
         model="openrouter/free",
         messages=messages,
         temperature=0,
+        tools=available_functions,
     )
     if response.usage is None:
         raise RuntimeError("Failed to send API request")
@@ -44,7 +50,18 @@ def generate_content(client: OpenAI, messages: list, verbose: bool) -> None:
         print("Prompt tokens:", response.usage.prompt_tokens)
         print("Response tokens:", response.usage.completion_tokens)
     print("Response: ")
-    print(response.choices[0].message.content)
+    message = response.choices[0].message
+    if message.tool_calls:
+        for tool_call in message.tool_calls:
+            result_message = call_function(tool_call, verbose)
+
+            if result_message["content"] is None:
+                raise Exception("Function call failed")
+
+            if verbose:
+                print(f"-> {result_message['content']}")
+
+    print(message.content)
 
 
 if __name__ == "__main__":
