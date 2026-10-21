@@ -1,7 +1,6 @@
 import argparse
-from logging import raiseExceptions
 import os
-import json
+import sys
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -33,10 +32,19 @@ def main() -> None:
     if args.verbose:
         print("User prompt:", args.user_promt)
 
-    generate_content(client, messages, args.verbose)
+    for _ in range(20):
+        message = generate_content(client, messages, args.verbose)
+        # Check if final message
+        if message.tool_calls is None:
+            print("Final response:")
+            print(message.content)
+            return
+
+    print("Error: agent hit maximum iteration limit")
+    sys.exit(1)
 
 
-def generate_content(client: OpenAI, messages: list, verbose: bool) -> None:
+def generate_content(client: OpenAI, messages: list, verbose: bool):
     response = client.chat.completions.create(
         model="openrouter/free",
         messages=messages,
@@ -49,11 +57,16 @@ def generate_content(client: OpenAI, messages: list, verbose: bool) -> None:
     if verbose:
         print("Prompt tokens:", response.usage.prompt_tokens)
         print("Response tokens:", response.usage.completion_tokens)
-    print("Response: ")
     message = response.choices[0].message
+
+    # Append Feedback
+    if message:
+        messages.append(message)
+
     if message.tool_calls:
         for tool_call in message.tool_calls:
             result_message = call_function(tool_call, verbose)
+            print(f"- Calling function: {tool_call.function.name}")
 
             if result_message["content"] is None:
                 raise Exception("Function call failed")
@@ -61,7 +74,10 @@ def generate_content(client: OpenAI, messages: list, verbose: bool) -> None:
             if verbose:
                 print(f"-> {result_message['content']}")
 
-    print(message.content)
+            # Append Feedback
+            messages.append(result_message)
+
+    return message
 
 
 if __name__ == "__main__":
