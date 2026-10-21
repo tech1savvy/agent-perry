@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 import argparse
+from prompts import system_prompt
 
 
 def main() -> None:
@@ -19,7 +20,10 @@ def main() -> None:
         )
 
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-    messages = [{"role": "user", "content": args.user_promt}]
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": args.user_promt},
+    ]
 
     if args.verbose:
         print("User prompt:", args.user_promt)
@@ -31,6 +35,7 @@ def generate_content(client: OpenAI, messages: list, verbose: bool) -> None:
     response = client.chat.completions.create(
         model="openrouter/free",
         messages=messages,
+        temperature=0,
     )
     if response.usage is None:
         raise RuntimeError("Failed to send API request")
